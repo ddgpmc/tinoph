@@ -5,33 +5,54 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Evacuation Center Finder</title>
 
-<!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
 
 <style>
-  html, body { margin:0; padding:0; height:100%; }
-  #map { height:100%; width:100%; }
-  #controls {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1000;
-    background: white;
-    padding: 10px;
-    border-radius: 8px;
-    box-shadow: 0 0 5px rgba(0,0,0,0.3);
-  }
-  #controls button {
-    padding: 10px 15px;
-    font-size: 16px;
-    border: none;
-    border-radius: 5px;
-    background-color: #EC1B34;
-    color: white;
-    cursor: pointer;
-  }
+    /* Reset and Map Styling */
+    html, body { 
+        margin:0; 
+        padding:0; 
+        height:100%; 
+        font-family: Arial, sans-serif;
+    }
+    #map { 
+        height:100%; 
+        width:100%; 
+        position: relative; 
+        z-index: 1; 
+    }
+    
+    /* Control Box Styling */
+    #controls {
+        position: absolute;
+        top: 15px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10000;
+        background: white;
+        padding: 12px;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    #controls button {
+        padding: 12px 20px;
+        font-size: 16px;
+        font-weight: bold;
+        border: none;
+        border-radius: 8px;
+        background-color: #EC1B34; 
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    #controls button:hover:not(:disabled) {
+        background-color: #d1172e;
+    }
+    #controls button:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+    }
 </style>
 </head>
 <body>
@@ -39,103 +60,182 @@
 <div id="map"></div>
 
 <div id="controls">
-  <button id="findNearestBtn">Find the Nearest Evacuation Center</button>
+    <button id="findNearestBtn" disabled>Loading Map Data & Location...</button>
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 
 <script>
-  var map = L.map('map').fitWorld();
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+    // Global variables
+    let map;
+    let userLatLng = null;
+    let evacCenters = [];
+    let routeControl = null;
+    const button = document.getElementById('findNearestBtn');
 
-  var evacCenters = [];
-  var userLatLng = null;
-  var routeControl = null;
-
-  // Load GeoJSON files automatically (must be in same folder)
-  async function loadGeoJSON(url) {
-    const res = await fetch(url);
-    const geojson = await res.json();
-    const centers = geojson.features.map(f => ({
-      name: f.properties.name || "Evacuation Center",
-      lat: f.geometry.coordinates[1],
-      lng: f.geometry.coordinates[0]
-    }));
-
-    L.geoJSON(geojson, {
-      onEachFeature: function(feature, layer){
-        layer.bindPopup(feature.properties.name || "Evacuation Center");
-      }
-    }).addTo(map);
-
-    return centers;
-  }
-
-  async function loadAllCenters() {
-    try {
-      const cleanedCenters = await loadGeoJSON('ph_evacs_cleaned.geojson');
-      const rawCenters = await loadGeoJSON('ph_evacs_raw.geojson');
-      evacCenters = cleanedCenters.concat(rawCenters);
-      console.log("Evacuation centers loaded: " + evacCenters.length);
-    } catch(err){
-      alert("Error loading GeoJSON files. Make sure both files are in the same folder.\n" + err);
-    }
-  }
-
-  loadAllCenters();
-
-  // Detect user location
-  map.locate({ setView: true, maxZoom: 16 });
-  map.on('locationfound', function(e){
-    userLatLng = e.latlng;
-    L.marker(userLatLng).addTo(map).bindPopup("You are here").openPopup();
-  });
-  map.on('locationerror', function(){
-    alert("Could not get your location. Please allow location access.");
-  });
-
-  // Button click: find nearest center
-  document.getElementById('findNearestBtn').addEventListener('click', function(){
-    if(!userLatLng){
-      alert("Waiting for your location. Please allow location access.");
-      return;
-    }
-    if(evacCenters.length === 0){
-      alert("Evacuation centers not loaded yet.");
-      return;
-    }
-
-    // Find nearest
-    let nearest = evacCenters[0];
-    let minDist = userLatLng.distanceTo(L.latLng(nearest.lat, nearest.lng));
-
-    evacCenters.forEach(center => {
-      let dist = userLatLng.distanceTo(L.latLng(center.lat, center.lng));
-      if(dist < minDist){
-        minDist = dist;
-        nearest = center;
-      }
+    // Promises to track readiness
+    let locationFoundPromise = new Promise(resolve => {
+        // Resolve function passed to location listener
+        window.resolveLocation = (latlng) => {
+            userLatLng = latlng;
+            resolve();
+        };
+    });
+    let centersLoadedPromise = new Promise(resolve => {
+        // Resolve function passed to async data loader
+        window.resolveCenters = (centers) => {
+            evacCenters = centers;
+            resolve();
+        };
     });
 
-    // Show popup with name/address
-    L.popup()
-      .setLatLng(userLatLng)
-      .setContent("Nearest evacuation center: <b>" + nearest.name + "</b><br>Distance: " + (minDist/1000).toFixed(2) + " km")
-      .openOn(map);
+    /**
+     * Initializes the Leaflet map and loads tile layer.
+     */
+    function initMap() {
+        map = L.map('map').setView([12.8797, 121.7740], 6); // Default view over Philippines
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors' 
+        }).addTo(map);
+    }
 
-    // Draw route
-    if(routeControl) map.removeControl(routeControl); // remove previous route
-    routeControl = L.Routing.control({
-      waypoints: [
-        L.latLng(userLatLng.lat, userLatLng.lng),
-        L.latLng(nearest.lat, nearest.lng)
-      ],
-      routeWhileDragging: false,
-      draggableWaypoints: false,
-      addWaypoints: false
-    }).addTo(map);
-  });
+    /**
+     * Fetches GeoJSON, filters for Point geometries, and populates markers.
+     */
+    async function loadGeoJSON(url) {
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`Network response was not ok: ${res.statusText}`);
+            const geojson = await res.json();
+
+            // 🌟 FIX: Filter data to only include valid POINT geometries for distance calculation
+            const centers = geojson.features
+                .filter(f => f.geometry && f.geometry.type === 'Point') 
+                .map(f => ({
+                    name: f.properties.name || "Evacuation Center",
+                    // For Point, coordinates is [lng, lat]
+                    lat: f.geometry.coordinates[1], 
+                    lng: f.geometry.coordinates[0]  
+                }));
+
+            // Add ALL features (Points, Polygons, etc.) to map for visualization
+            L.geoJSON(geojson, {
+                onEachFeature: function(feature, layer) {
+                    layer.bindPopup(feature.properties.name || "Evacuation Center");
+                }
+            }).addTo(map);
+
+            return centers;
+
+        } catch(err) {
+            console.error("Failed to load GeoJSON:", err);
+            alert("⚠️ Failed to load evacuation centers data.");
+            return [];
+        }
+    }
+
+    /**
+     * Initializes the data and resolves the promise.
+     */
+    async function initEvacCenters() {
+        const url = 'https://raw.githubusercontent.com/ddgpmc/tinoph/refs/heads/main/ph_evacs_cleaned.geojson';
+        const centers = await loadGeoJSON(url);
+        console.log("Evacuation centers loaded:", centers.length);
+        window.resolveCenters(centers);
+    }
+
+    /**
+     * Detects user location and handles success/error.
+     */
+    function detectLocation() {
+        // SetView: true is only used if location is found, otherwise map stays at default view
+        map.locate({ setView: true, maxZoom: 16, watch: false, enableHighAccuracy: true });
+
+        map.on('locationfound', function(e) {
+            L.marker(e.latlng).addTo(map).bindPopup("You are here").openPopup();
+            window.resolveLocation(e.latlng); // Resolve the location promise
+        });
+
+        map.on('locationerror', function(e) {
+            console.error("Location error:", e.message);
+            alert("❌ Could not get your location. Displaying map only.");
+            window.resolveLocation(null); // Resolve the promise as 'null' on error
+        });
+    }
+
+    /**
+     * Finds the nearest center and initiates the route.
+     */
+    function findNearestCenter() {
+        if (!userLatLng) return alert("Location not found. Please refresh and allow location access.");
+        if (evacCenters.length === 0) return alert("Evacuation centers data is unavailable.");
+
+        // Safe to access evacCenters[0] because the button is only enabled when length > 0
+        let nearest = evacCenters[0];
+        let minDist = userLatLng.distanceTo(L.latLng(nearest.lat, nearest.lng)); 
+
+        evacCenters.forEach(center => {
+            let dist = userLatLng.distanceTo(L.latLng(center.lat, center.lng));
+            if (dist < minDist) {
+                minDist = dist;
+                nearest = center;
+            }
+        });
+
+        // Show result popup
+        L.popup()
+          .setLatLng(userLatLng)
+          .setContent(`Nearest center: <b>${nearest.name}</b><br>Distance: ${(minDist / 1000).toFixed(2)} km`)
+          .openOn(map);
+
+        // Draw route
+        try {
+            if (routeControl) map.removeControl(routeControl);
+            routeControl = L.Routing.control({
+                waypoints: [
+                    L.latLng(userLatLng.lat, userLatLng.lng),
+                    L.latLng(nearest.lat, nearest.lng)
+                ],
+                routeWhileDragging: false,
+                draggableWaypoints: false,
+                addWaypoints: false,
+                // Optional: Hide default routing instructions for cleaner UI
+                show: false 
+            }).addTo(map);
+        } catch(err) {
+            console.error("Routing error:", err);
+            alert("⚠️ Cannot draw route. The routing service may be temporarily unavailable.");
+        }
+    }
+    
+    // --- Application Entry Point ---
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        initMap();
+        
+        // Start loading data and location detection concurrently
+        initEvacCenters(); 
+        detectLocation();
+
+        // Wait for BOTH promises to resolve before determining button state
+        await Promise.all([locationFoundPromise, centersLoadedPromise]);
+
+        // Logic to enable/disable button based on results
+        if (userLatLng && evacCenters.length > 0) {
+            button.disabled = false;
+            button.textContent = "Find the Nearest Evacuation Center";
+        } else if (evacCenters.length > 0) {
+            button.textContent = "Allow Location to Find Nearest Center";
+        } else {
+             button.textContent = "Error Loading Centers Data";
+        }
+        
+        // Attach event listener only after initialization is complete
+        button.addEventListener('click', findNearestCenter);
+    });
+
 </script>
 
 </body>
