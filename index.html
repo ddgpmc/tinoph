@@ -69,14 +69,14 @@ html, body {
  display: inline-block;
  margin-top: 8px;
  padding: 8px 12px;
- background-color: #4285F4;
- color: #fff;
+ background-color: #000000;
+ color: #fff !important; 
  font-weight: bold;
  text-decoration: none;
  border-radius: 6px;
 }
 .nav-link:hover {
-background-color: #3367d6;
+ background-color: #3367d6;
 }
 </style>
 </head>
@@ -114,11 +114,11 @@ function getFeatureLatLng(feature) {
 
  if (feature.geometry.type === "Point") return L.latLng(coords[1], coords[0]);
  
-    // Simplified logic for Polygon/MultiPolygon centroid calculation
+ // Simplified logic for Polygon/MultiPolygon centroid calculation
  if (feature.geometry.type === "Polygon" || feature.geometry.type === "MultiPolygon") {
   let latSum = 0, lngSum = 0, count = 0;
-        // Use the first ring of the first part (coords[0] for Polygon, coords[0][0] for MultiPolygon)
-        const ring = feature.geometry.type === "Polygon" ? coords[0] : coords[0][0]; 
+  // Use the first ring of the first part
+  const ring = feature.geometry.type === "Polygon" ? coords[0] : coords[0][0]; 
   ring.forEach(c => { lngSum += c[0]; latSum += c[1]; count++; });
   return L.latLng(latSum / count, lngSum / count);
  }
@@ -196,8 +196,8 @@ function findNearestCenter() {
   userMarker = null; 
  }
 
- // 2. ⭐️ CORRECTED Google Maps URL for Directions 
-    // Format: https://www.google.com/maps/dir/Origin_Lat,Origin_Lng/Dest_Lat,Dest_Lng
+ // 2. 🌟 CORRECTED Google Maps URL Construction 
+    // Uses the base URL for directions and correctly interpolates variables.
  const mapsUrl = `https://www.google.com/maps/dir/${userLatLng.lat},${userLatLng.lng}/${nearest.lat},${nearest.lng}`;
 
  // 3. Draw Route from User (A) to Nearest Center (B)
