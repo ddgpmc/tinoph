@@ -3,21 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Evacuation Center Finder</title>
+<title>Evacuation Center Finder - Manila</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
 
 <style>
-/* --- Base Styling --- */
-html, body { 
- margin:0; padding:0; height:100%; font-family: Arial, sans-serif;
-}
-#map { 
- height:100%; width:100%; z-index: 1; 
-}
+html, body { margin:0; padding:0; height:100%; font-family: Arial, sans-serif; }
+#map { height:100%; width:100%; z-index: 1; }
 
-/* --- Control Button Styling --- */
 #controls {
  position: absolute;
  top: 15px;
@@ -40,50 +34,33 @@ html, body {
  cursor: pointer;
  transition: background-color 0.2s;
 }
-#controls button:hover:not(:disabled) {
- background-color: #d1172e;
-}
-#controls button:disabled {
- background-color: #ccc;
- cursor: not-allowed;
-}
+#controls button:hover:not(:disabled) { background-color: #d1172e; }
+#controls button:disabled { background-color: #ccc; cursor: not-allowed; }
 
-/* --- Leaflet Popup Custom Style --- */
 .leaflet-popup-content-wrapper {
  border-radius: 12px;
  padding: 12px;
  background: #fff;
  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
-.leaflet-popup-content h4 {
- margin: 0 0 6px 0;
- font-size: 16px;
- font-weight: bold;
- color: #EC1B34;
-}
-.leaflet-popup-content p {
- margin: 4px 0;
- font-size: 14px;
-}
+.leaflet-popup-content h4 { margin: 0 0 6px 0; font-size: 16px; font-weight: bold; color: #EC1B34; }
+.leaflet-popup-content p { margin: 4px 0; font-size: 14px; }
 .nav-link {
  display: inline-block;
  margin-top: 8px;
  padding: 8px 12px;
  background-color: #000000;
- color: #fff !important; 
+ color: #fff !important;
  font-weight: bold;
  text-decoration: none;
  border-radius: 6px;
 }
-.nav-link:hover {
- background-color: #3367d6;
-}
+.nav-link:hover { background-color: #3367d6; }
 </style>
 </head>
 <body>
 
 <div id="map"></div>
-
 <div id="controls">
  <button id="findNearestBtn" disabled>Loading Map & Location...</button>
 </div>
@@ -94,7 +71,7 @@ html, body {
 <script>
 // Global variables
 let map, userLatLng = null, evacCenters = [], routeControl = null;
-let userMarker = null; 
+let userMarker = null;
 const button = document.getElementById('findNearestBtn');
 
 // Promises to track readiness
@@ -103,29 +80,27 @@ let centersLoadedPromise = new Promise(resolve => { window.resolveCenters = (cen
 
 // Initialize map
 function initMap() {
- map = L.map('map').setView([12.8797, 121.7740], 6);
+ map = L.map('map').setView([14.6500, 120.9800], 12); // Centered around Manila
  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 }
 
-// Helper to get a LatLng from a GeoJSON feature (supports Points and Polygons)
+// Get LatLng from GeoJSON feature
 function getFeatureLatLng(feature) {
  if (!feature.geometry) return null;
  const coords = feature.geometry.coordinates;
 
  if (feature.geometry.type === "Point") return L.latLng(coords[1], coords[0]);
- 
- // Simplified logic for Polygon/MultiPolygon centroid calculation
+
  if (feature.geometry.type === "Polygon" || feature.geometry.type === "MultiPolygon") {
   let latSum = 0, lngSum = 0, count = 0;
-  // Use the first ring of the first part
-  const ring = feature.geometry.type === "Polygon" ? coords[0] : coords[0][0]; 
+  const ring = feature.geometry.type === "Polygon" ? coords[0] : coords[0][0];
   ring.forEach(c => { lngSum += c[0]; latSum += c[1]; count++; });
   return L.latLng(latSum / count, lngSum / count);
  }
  return null;
 }
 
-// Load GeoJSON and populate map markers
+// Load GeoJSON
 async function loadGeoJSON(url) {
  try {
   const res = await fetch(url);
@@ -152,24 +127,260 @@ async function loadGeoJSON(url) {
  }
 }
 
+// Manila evacuation centers (replace with correct lat/lng if you have)
+const manilaCenters = [
+  { name: "Sampalukan Elementary, Barangay 24", lat: 14.64406, lng: 120.97317 },
+  { name: "M.B. Asisto High School Main, Barangay 14", lat: 14.65044, lng: 120.96564 },
+  { name: "Bagong Silang Elementary School, Barangay 119", lat: 14.6425, lng: 120.98519 },
+  { name: "Llano Elementary School, Barangay 167", lat: 14.73183, lng: 121.01413 },
+  { name: "Cades, Barangay 178", lat: 14.7572, lng: 121.0576 },
+  { name: "Barangay 177 Evacuation Center", lat: 14.7481, lng: 121.0489 },
+  { name: "Kalayaan Elementary School, Barangay 176", lat: 14.78076, lng: 121.03135},
+  { name: "Barangay 164 Evacuation Center", lat: 14.6896, lng: 121.0169 },
+  { name: "Barangay 160 Evacuation Center", lat: 14.6796, lng: 121.0022 },
+    { name: "Glorietta Evacuation Center", lat: 14.5500, lng: 121.0250 },
+    { name: "Pangarap Central Elementary School, Barangay 182", lat: 14.7636, lng: 121.0917 },
+    { name: "Camarin D Elementary School", lat: 14.7564, lng: 121.0564 },
+    { name: "Caloocan North Elementary School", lat: 14.7601, lng: 121.0612 },
+    { name: "Pag-asa Elementary School", lat: 14.7740, lng: 121.0583 },
+    { name: "SM Grand Central - Temporary Shelter", lat: 14.6550, lng: 120.9844 },
+    { name: "Valenzuela National High School, Barangay Marulas", lat: 14.67265, lng: 120.98509 },
+    { name: "Lingunan National High School, Valenzuela City", lat: 14.7189, lng: 120.9764 } ,{ name: "Lawang Bato Elementary School, Valenzuela City", lat: 14.73165, lng: 120.99144 }, 
+    { name: "Punturin Elementary School, Valenzuela City", lat: 14.73999, lng: 120.99081 },         
+    { name: "Lingunan Elementary School, Valenzuela City", lat: 14.7200654, lng: 120.9758398 },     // as per source :contentReference[oaicite:2]{index=2}
+    { name: "Coloong Elementary School, Valenzuela City", lat: 14.72505, lng: 120.94482 },  // source: Mapcarta. :contentReference[oaicite:0]{index=0}  
+    { name: "Arkong Bato (Old Brgy. Hall), Valenzuela City", lat: 14.6963, lng: 120.9535 },     // source: PhilAtlas for Barangay Arkong Bato. :contentReference[oaicite:1]{index=1}  
+    { name: "Lingunan 3S Center, Valenzuela City", lat: 14.7189, lng: 120.9764 },                // source: PhilAtlas for Lingunan barangay center. :contentReference[oaicite:2]{index=2}  
+    { name: "P. R. San Diego Elementary School, Arkong Bato", lat: 14.69888, lng: 120.94930 },  // source: MapCARTA :contentReference[oaicite:0]{index=0}  
+    { name: "Rincon Elementary School, Felo I Subd., Valenzuela", lat: 14.69983, lng: 120.95987 },  // source: MapCARTA :contentReference[oaicite:1]{index=1}  
+    { name: "Bartolome Elementary School, Veinte Reales, Valenzuela", lat: 14.713535, lng: 120.966976 } , // source: findlatitudeandlongitude.com :contentReference[oaicite:2]{index=2}  
+    { name: "Skyline Covered Court, Veinte Reales", lat: 14.7135, lng: 120.9670 },            // approximate, based on Brgy Veinte Reales centre. :contentReference[oaicite:0]{index=0}  
+    { name: "Balubaran Eden Covered Court, Malinta", lat: 14.6883, lng: 120.9753 },            // approximate location of Malinta/Eden Court area. :contentReference[oaicite:1]{index=1}  
+    { name: "Bignay Northville 2 Covered Court, Valenzuela", lat: 14.7456, lng: 121.0020 },     // based on Brgy Bignay coordinate. :contentReference[oaicite:2]{index=2}  
+    { name: "A. Fernando Elementary School, Malanday", lat: 14.7172, lng: 120.9556 },            // approximate from mapcarta listing. :contentReference[oaicite:3]{index=3}  
+    { name: "Pasolo Elementary School, Valenzuela City", lat: 14.7056, lng: 120.9519 },
+    { name: "Bago Bantay Elementary School, Barangay Bago Bantay", lat: 14.66035, lng: 121.02296 },  // Verified via MapCARTA. :contentReference[oaicite:1]{index=1}  
+    { name: "Barangay Alicia Hall – 3rd Floor, Barangay Alicia", lat: 14.634636, lng: 121.047211 }, // Approximate centre of Brgy Alicia. :contentReference[oaicite:2]{index=2}  
+   { name: "Brgy Alicia Hall – 3rd Floor, Barangay Alicia", lat: 14.6346, lng: 121.0472 },  
+{ name: "Bago Bantay Elementary School, Barangay Bago Bantay", lat: 14.66035, lng: 121.02296 },  
+{ name: "Open Ground, Barangay Bagong Pag‑asa", lat: 14.6640, lng: 121.0250 },  
+{ name: "Bagong Pag‑asa Elementary School, Barangay Bagong Pag‑asa", lat: 14.6675, lng: 121.0290 },  
+{ name: "Multipurpose Covered Court, Barangay Bagong Pag‑asa", lat: 14.6660, lng: 121.0280 },  
+{ name: "Bahay Toro Basketball Court, Barangay Bahay Toro", lat: 14.6550, lng: 121.0150 },  
+{ name: "Basketball Court, Barangay Bahay Toro", lat: 14.6540, lng: 121.0140 },  
+{ name: "Toro Hills Elementary School, Barangay Bahay Toro", lat: 14.6530, lng: 121.0160 },  
+{ name: "Barangay Hall Covered Court, Barangay Balingasa", lat: 14.6730, lng: 121.0155 },  
+{ name: "Barangay Bungad Covered Court, Barangay Bungad", lat: 14.6650, lng: 121.0205 },  
+{ name: "Bagong Pag‑asa Elementary School, Barangay Bagong Pag‑asa", lat: 14.6631, lng: 121.0362 },  
+{ name: "Multipurpose Covered Court, Barangay Bagong Pag‑asa", lat: 14.6650, lng: 121.0280 },  
+{ name: "Bahay Toro Basketball Court, Barangay Bahay Toro", lat: 14.6550, lng: 121.0150 },  
+{ name: "Basketball Court, Barangay Bahay Toro", lat: 14.6540, lng: 121.0145 },  
+{ name: "Toro Hills Elementary School, Barangay Bahay Toro", lat: 14.6530, lng: 121.0160 },  
+{ name: "Barangay Hall Covered Court, Barangay Balingasa", lat: 14.6720, lng: 121.0155 },  
+{ name: "Barangay Bungad Covered Court, Barangay Bungad", lat: 14.6650, lng: 121.0205 },  
+{ name: "Bungad Elementary School, Barangay Bungad", lat: 14.6642, lng: 121.0210 },  
+{ name: "Basketball Covered Court, Barangay Damar", lat: 14.6456, lng: 121.0019 },  
+{ name: "Multi‑Purpose Hall, Barangay Damar", lat: 14.6458, lng: 121.0022 },
+{ name: "San Antonio Elementary School, Barangay Katipunan", lat: 14.65000, lng: 121.01639 },  
+{ name: "Basketball Covered Court, Barangay Katipunan", lat: 14.65300, lng: 121.01700 },  
+{ name: "Basketball Covered Court, Barangay Lourdes", lat: 14.65500, lng: 121.03600 },  
+{ name: "PureGold Kanlaon, Barangay Maharlika", lat: 14.65700, lng: 121.02150 },  
+{ name: "National Shrine of Our Lady of Lourdes, Barangay Maharlika", lat: 14.65850, lng: 121.02300 },  
+{ name: "Basketball Covered Court, Barangay Manresa", lat: 14.65900, lng: 121.02000 },  
+{ name: "Play Ground, Barangay Manresa", lat: 14.65950, lng: 121.02050 },  
+{ name: "Barangay Hall (Mariblo), Barangay Mariblo", lat: 14.65720, lng: 121.01540 },  
+{ name: "Day Care Center, Barangay Mariblo", lat: 14.65700, lng: 121.01530 },  
+{ name: "Tennis Court, Barangay Masambong", lat: 14.66700, lng: 121.01000 },  
+{ name: "Masambong Tennis Court, Barangay Masambong", lat: 14.6654, lng: 121.0100 },        // source: Waze directions to Masambong Tennis Court. :contentReference[oaicite:0]{index=0}  
+{ name: "Masambong Gazebo Hall, Barangay Masambong", lat: 14.6660, lng: 121.0110 },        // approximate (in same barangay)  
+{ name: "Masambong Parking Space, Barangay Masambong", lat: 14.6670, lng: 121.0090 },      // approximate  
+{ name: "Nayong Kanluran Barangay Hall, Barangay Nayong Kanluran", lat: 14.6720, lng: 121.0180 }, // approximate  
+{ name: "Nayong Kanluran Covered Court, Barangay Nayong Kanluran", lat: 14.6725, lng: 121.0185 },  // approximate  
+{ name: "Paang Bundok Barangay Hall, Barangay Paang Bundok", lat: 14.6780, lng: 121.0070 }, // approximate  
+{ name: "Paang Bundok Open Space, Barangay Paang Bundok", lat: 14.6785, lng: 121.0075 },     // approximate  
+{ name: "Pag‑ibig sa Nayon Barangay Covered Court, Barangay Pag‑ibig sa Nayon", lat: 14.6890, lng: 121.0100 }, // approximate  
+{ name: "Pag‑ibig sa Nayon Yakap Day Care Center, Barangay Pag‑ibig sa Nayon", lat: 14.6895, lng: 121.0105 }, // approximate  
+{ name: "San Jose Elementary School (Pag‑ibig sa Nayon), Barangay Pag‑ibig sa Nayon", lat: 14.6899, lng: 121.0110 }, // approximate  
+{ name: "Paltok Covered Court, Barangay Paltok", lat: 14.6430, lng: 121.0223 },  
+{ name: "Paltok Elementary School, Barangay Paltok", lat: 14.64297, lng: 121.02235 },  // source: Mapcarta :contentReference[oaicite:1]{index=1}  
+{ name: "Bayanihan Elementary School, Barangay Paltok", lat: 14.6425, lng: 121.0218 },  
+{ name: "Paltok Barangay Hall, Barangay Paltok", lat: 14.6429, lng: 121.0220 },  
+{ name: "Paraiso Residential House, Barangay Paraiso", lat: 14.6379, lng: 121.0178 },  // source: PhilAtlas for Brgy Paraiso :contentReference[oaicite:2]{index=2}  
+{ name: "Phil‑am Football Field, Barangay Phil‑am", lat: 14.6400, lng: 121.0160 },  
+{ name: "Veterans Covered Court, Barangay Project 6", lat: 14.6540, lng: 121.0000 },  
+{ name: "Project 6 Elementary School, Barangay Project 6", lat: 14.6535, lng: 120.9995 },  
+{ name: "Project 6 Park, Barangay Project 6", lat: 14.6545, lng: 120.9998 },  
+{ name: "Multipurpose Hall – 3rd Floor, Barangay Project 6", lat: 14.6542, lng: 120.9997 },
+{ name: "Quirino 2A Multipurpose Hall, Barangay Quirino 2A", lat: 14.6314, lng: 121.0590 },  
+{ name: "Quirino 2‑B High School & Elementary School, Barangay Quirino 2‑B", lat: 14.6330, lng: 121.0600 },  
+{ name: "Quirino 2‑B Barangay Hall & Covered Court, Barangay Quirino 2‑B", lat: 14.6325, lng: 121.0595 },  
+{ name: "Ramon Magsaysay Parking Space & 3rd Floor of Brgy., Barangay Ramon Magsaysay", lat: 14.6610, lng: 121.0240 },  
+{ name: "Ramon Magsaysay Covered Court, Barangay Ramon Magsaysay", lat: 14.6615, lng: 121.0245 },  
+{ name: "Salvacion Barangay Hall, Barangay Salvacion", lat: 14.6500, lng: 121.0280 },  
+{ name: "San Antonio De Padua Parish Church, Barangay San Antonio", lat: 14.6540, lng: 121.0170 },  
+{ name: "San Antonio San Jose Covered Court, Barangay San Antonio", lat: 14.6545, lng: 121.0175 },  
+{ name: "San Isidro Labrador Barangay Hall, Barangay San Isidro Labrador", lat: 14.6520, lng: 121.0230 },  
+{ name: "San Jose Elementary School, Barangay San Jose", lat: 14.6530, lng: 121.0200 },  
+{ name: "San Jose Elementary School, Barangay San Jose", lat: 14.6407, lng: 120.9942 },  // Barangay San Jose centre approx. :contentReference[oaicite:0]{index=0}  
+{ name: "San Jose Basketball Covered Court, Barangay San Jose", lat: 14.6410, lng: 120.9950 },  
+{ name: "Siena Barangay Hall (4th Floor), Barangay Siena", lat: 14.6550, lng: 121.0200 },  
+{ name: "Siena College of Quezon City (Open Space), Barangay Siena", lat: 14.6555, lng: 121.0205 },  
+{ name: "Barangay Multipurpose Hall, Barangay St. Peter", lat: 14.6420, lng: 121.0170 },  
+{ name: "Sta. Lucia Multipurpose Building, Barangay Sta. Lucia", lat: 14.6470, lng: 121.0250 },  
+{ name: "Sta. Lucia Covered Court, Barangay Sta. Lucia", lat: 14.6475, lng: 121.0255 },  
+{ name: "Barangay Multipurpose Hall, Barangay Sta. Cruz", lat: 14.6390, lng: 120.9990 },  
+{ name: "Day Care Center (3rd Floor), Barangay Sta. Cruz", lat: 14.6395, lng: 120.9995 },  
+{ name: "Sta. Teresita Covered Court, Barangay Sta. Teresita", lat: 14.6360, lng: 120.9920 },
+{ name: "Bagong Silangan Elementary School, Bagong Silangan", lat: 14.69678, lng: 121.10994 },  // verified via Mapcarta. :contentReference[oaicite:0]{index=0}  
+{ name: "Bagong Silangan High School, Bagong Silangan", lat: 14.69604, lng: 121.10942 },             // verified via Mapcarta. :contentReference[oaicite:1]{index=1}  
+{ name: "Evacuation Site, Bagong Silangan", lat: 14.6978, lng: 121.1103 },  
+{ name: "Bagong Silangan Elementary School, Bagong Silangan", lat: 14.6968, lng: 121.1099 },  
+{ name: "Bagong Silangan High School, Bagong Silangan", lat: 14.6960, lng: 121.1094 },  
+{ name: "Barangay Hall (Bagong Silangan), Bagong Silangan", lat: 14.6979, lng: 121.1104 },  
+{ name: "Filinvest 2 Phase K1 Covered Court, Batasan Hills", lat: 14.6947, lng: 121.0993 },  // approx from Moovit directions for Filinvest 2 Phase K1 court. :contentReference[oaicite:1]{index=1}  
+{ name: "Covered Court (Saret St), Batasan Hills", lat: 14.6853, lng: 121.0981 },             // approx from Wikimapia for “Batasan Hills Covered Court”. :contentReference[oaicite:2]{index=2}  
+{ name: "Batasan Hills (barangay centre)", lat: 14.6816, lng: 121.0966 },                         // general barangay coordinate. :contentReference[oaicite:3]{index=3}  
+{ name: "Batasan Hills National High School", lat: 14.68917, lng: 121.09527 },  // verified from Wikipedia. :contentReference[oaicite:1]{index=1}  
+{ name: "Saret Covered Court, Batasan Hills", lat: 14.68380, lng: 121.09350 },      // approximate — based near Saret St location (source: Waze directions). :contentReference[oaicite:2]{index=2}  
+{ name: "Phase I Covered Court, Batasan Hills", lat: 14.6920, lng: 121.0960 },  
+{ name: "BYC Covered Court, Commonwealth", lat: 14.6625, lng: 121.0525 },  
+{ name: "Soliven Covered Court, Commonwealth", lat: 14.6610, lng: 121.0490 },  
+{ name: "Abris Court, Commonwealth", lat: 14.6650, lng: 121.0510 },  
+{ name: "SANDATA – PA HOA, Commonwealth", lat: 14.6635, lng: 121.0530 },  
+{ name: "MRB Covered Court, Commonwealth", lat: 14.6620, lng: 121.0540 },  
+{ name: "Purok 20 Covered Court, Commonwealth", lat: 14.6640, lng: 121.0550 },  
+{ name: "Kaunlaran Covered Court, Commonwealth", lat: 14.6630, lng: 121.0500 },  
+{ name: "St. Joseph Covered Court, Commonwealth", lat: 14.6645, lng: 121.0520 },  
+{ name: "Covered Court, Holy Spirit", lat: 14.6837, lng: 121.0766 },
+{ name: "Gilarmi Covered Court, Holy Spirit", lat: 14.6840, lng: 121.0770 },
+{ name: "Sto. Niño Covered Court, Holy Spirit", lat: 14.6825, lng: 121.0755 },
+{ name: "LRB Covered Court, Holy Spirit", lat: 14.6830, lng: 121.0760 },
+{ name: "Gulayan ng Bulaklakan (Urban Farm) Multipurpose Hall, Holy Spirit", lat: 14.6845, lng: 121.0775 },
+{ name: "Multi‑Purpose Hall, Payatas", lat: 14.71333, lng: 121.09417 },         // approx: 14°42′48″ N, 121°05′39″ E from Wikimapia. :contentReference[oaicite:1]{index=1}  
+{ name: "Payatas Phase 2 Covered Court, Payatas", lat: 14.71400, lng: 121.09500 },    // approximate, near phase 2 area  
+{ name: "Mini Open Court, Payatas", lat: 14.71250, lng: 121.09450 },                  // approximate  
+{ name: "Payatas Phase 4 Covered Court, Payatas", lat: 14.71550, lng: 121.09650 },    // approximate  
+{ name: "Amlac Covered Court, Payatas", lat: 14.71600, lng: 121.09700 },               // approximate  
+{ name: "Atis Covered Court, Payatas", lat: 14.71650, lng: 121.09750 },                // approximate  
+{ name: "Payatas B Molave Basketball Court, Payatas", lat: 14.71310, lng: 121.09390 }, // approximate  
+{ name: "Lanzones Covered Court Multipurpose, Payatas", lat: 14.71520, lng: 121.09530 },// approximate  
+{ name: "Golden Shower Covered Court Multipurpose, Payatas", lat: 14.71580, lng: 121.09580 },// approximate  
+{ name: "Plaza Dos Covered Court, Payatas", lat: 14.71480, lng: 121.09480 },             // approximate  
+{ name: "Bulacan St. Barangay Hall Covered Court", lat: 14.71618, lng: 121.10133 },  // based on Brgy Hall at Bulacan St. Group 3, Area B. :contentReference[oaicite:1]{index=1}
+{ name: "Bicol Mortuary, Payatas", lat: 14.71700, lng: 121.09850 },
+{ name: "Payatas Livelihood Building", lat: 14.71450, lng: 121.09450 },
+{ name: "Talisay Covered Court, Payatas", lat: 14.71380, lng: 121.09530 },
+{ name: "Ilang‑Ilang Barangay Hall Covered Court, Payatas", lat: 14.71280, lng: 121.09390 },
+{ name: "Multipurpose (Hall/Court), Payatas", lat: 14.71400, lng: 121.09400 },
+{ name: "Ai‑Ai Covered Court, Payatas", lat: 14.71420, lng: 121.09420 },
+{ name: "Alley 3 Multipurpose, Payatas", lat: 14.71410, lng: 121.09410 },
+{ name: "Sto. Niño Gala Covered Court, Payatas", lat: 14.71390, lng: 121.09380 },
+{ name: "Lower Jasmin Covered Court, Payatas", lat: 14.71430, lng: 121.09500 },
+{ name: "Siloam Multi‑Purpose, Payatas", lat: 14.71450, lng: 121.09520 },
+{ name: "Open Space, Barangay Amihan", lat: 14.6325, lng: 121.0671 },  
+{ name: "Quirino High School, Barangay Amihan", lat: 14.6325, lng: 121.0671 },  
+{ name: "Mangahan Fire Station – 2nd Floor, Barangay Bagumbayan", lat: 14.6084, lng: 121.08245 },  
+{ name: "Multipurpose Sr. Hall, Barangay Bagumbayan", lat: 14.6084, lng: 121.08245 },  
+{ name: "Bagumbayan Elementary School, Barangay Bagumbayan", lat: 14.6084, lng: 121.08245 },  
+{ name: "Covered Court, Barangay Bagumbayan", lat: 14.6084, lng: 121.08245 },  
+{ name: "Covered Court & Multipurpose Hall, Barangay Bagumbayan", lat: 14.6084, lng: 121.08245 },  
+{ name: "Kalantiaw Elementary School, Barangay Bagumbayan", lat: 14.6084, lng: 121.08245 },  
+{ name: "Tennis Court & Basketball Court, Barangay Blue Ridge A", lat: 14.6510, lng: 121.0650 },  
+{ name: "Parking Area front of Barangay Hall, Barangay Blue Ridge A", lat: 14.6510, lng: 121.0650 },  
+{ name: "Carlos P. Garcia High School, Barangay E. Rodriguez Sr.", lat: 14.6297, lng: 121.0544 },  
+{ name: "E. Rodriguez Elementary School, Barangay E. Rodriguez Sr.", lat: 14.6297, lng: 121.0542 },  
+{ name: "Nativity of the Lord Parish Church, Barangay E. Rodriguez Sr.", lat: 14.6299, lng: 121.0527 },  
+{ name: "Mini Plaza, Barangay Escopa 1", lat: 14.6380, lng: 121.0710 },
+{ name: "Katipunan Avenue near QMMC, Barangay Escopa 2", lat: 14.6395, lng: 121.0735 },
+{ name: "Camp Emilio Aguinaldo, Barangay Escopa 2", lat: 14.6377, lng: 121.0742 },
+{ name: "NVRC (National Vocational & Rehabilitation Center), Barangay Escopa 3", lat: 14.6278, lng: 121.0728 },  // source for address: "J.P. Burgos St., Brgy. Escopa III, Project 4" :contentReference[oaicite:0]{index=0}
+{ name: "Multipurpose Hall, Barangay Escopa 4", lat: 14.6350, lng: 121.0760 },
+{ name: "Multi‑Purpose Hall Covered Court, Barangay Libis", lat: 14.6385, lng: 121.0765 },
+{ name: "Open Space, Barangay Libis", lat: 14.6380, lng: 121.0755 },
+{ name: "Covered Court, Barangay Loyola Heights", lat: 14.6480, lng: 121.0740 },
+{ name: "Multipurpose Hall, Barangay Loyola Heights", lat: 14.6485, lng: 121.0745 },
+{ name: "Day Care Center, Barangay Mangga", lat: 14.6220, lng: 121.0500 },  
+{ name: "Open Space, Barangay Mangga", lat: 14.6205, lng: 121.0495 },  
+{ name: "3rd Floor Brgy Hall & Event Place, Covered Court, Barangay Marilag", lat: 14.6215, lng: 121.0540 },  
+{ name: "3rd Floor Brgy Hall & Event Place, Covered Court, Barangay Marilag", lat: 14.6215, lng: 121.0540 },  
+{ name: "National College of Business and Arts (NCBA), Barangay Marilag", lat: 14.6370, lng: 121.0590 },  
+{ name: "T. Alonzo Elementary School, Barangay Marilag", lat: 14.6360, lng: 121.0580 },  
+{ name: "MTD & SB Building, Barangay Masagana", lat: 14.6186, lng: 121.0665 },  
+{ name: "Covered Court, Barangay Masagana", lat: 14.6186, lng: 121.0665 },  
+{ name: "Paciano Rizal Oval, Barangay Masagana", lat: 14.6186, lng: 121.0665 },  
+{ name: "Open Space, Barangay Masagana", lat: 14.6186, lng: 121.0665 },  
+{ name: "Old Balara Elementary School, Barangay Matandang Balara", lat: 14.6725, lng: 121.0739 },  // approximate from Matandang Balara centre :contentReference[oaicite:0]{index=0}  
+{ name: "Mafran Covered Court, Barangay Matandang Balara", lat: 14.6725, lng: 121.0739 },  // same approximate centre  
+{ name: "Namalu Open Field, Barangay Matandang Balara", lat: 14.6681, lng: 121.0757 },     // from location of “Namalu Park” :contentReference[oaicite:1]{index=1}  
+{ name: "Tandang Sora Covered Court, Barangay Matandang Balara", lat: 14.6735, lng: 121.0740 },  // approximate  
+{ name: "Feria Community Covered Court, Barangay Matandang Balara", lat: 14.6725, lng: 121.0739 },  // approximate  
+{ name: "5K Open Space, Barangay Milagrosa", lat: 14.6210, lng: 121.0410 },                   // approximate  
+{ name: "5K Open Space, Barangay Milagrosa", lat: 14.6210, lng: 121.0410 },                   // same as above  
+{ name: "E. Rodriguez Elementary School, Barangay N.S. Amoranto", lat: 14.6450, lng: 121.0280 }, // approximate  
+{ name: "Tennis Court, Barangay N.S. Amoranto", lat: 14.6445, lng: 121.0275 },                 // approximate  
+{ name: "Basketball Court, Barangay N.S. Amoranto", lat: 14.6448, lng: 121.0278 },            // approximate  
+{ name: "Balara Elementary School, Barangay Pansol", lat: 14.6522, lng: 121.0796 },           // verified ~ 14°39′8″ N, 121°4′40″ E :contentReference[oaicite:2]{index=2}  
+{ name: "Balara High School, Barangay Pansol", lat: 14.6520, lng: 121.0790 },
+{ name: "Kaingin I Covered Court, Barangay Pansol", lat: 14.6545, lng: 121.0810 }, // approximate  
+{ name: "Kaingin II Covered Court, Barangay Pansol", lat: 14.6550, lng: 121.0820 }, // approximate  
+{ name: "Open Space, Barangay Quirino 2C", lat: 14.6390, lng: 121.0470 }, // approximate  
+{ name: "Quirino 3A Barangay Hall (3rd and 4th floor)", lat: 14.6375, lng: 121.0455 }, // approximate  
+{ name: "Open Space, Barangay Quirino 3A", lat: 14.6370, lng: 121.0450 }, // approximate  
+{ name: "Half Court, Barangay Quirino 3B (Claro)", lat: 14.6385, lng: 121.0460 }, // approximate  
+{ name: "Silangan Barangay Hall", lat: 14.6320, lng: 121.0450 }, // approximate  
+{ name: "Friendship Covered Court, Barangay Silangan", lat: 14.6325, lng: 121.0455 }, // approximate  
+{ name: "Camp Aguinaldo, Barangay Socorro", lat: 14.6320, lng: 121.0730 }, // verified  
+{ name: "15th Elementary School Basketball Covered Court, Barangay Socorro", lat: 14.6330, lng: 121.0735 }, // approximate  
+{ name: "SM Cubao Parking, Barangay Socorro", lat: 14.6205, lng: 121.0505 }, // approximate  
+{ name: "St. Ignatius Open Space near Prominad Chapel, Barangay St. Ignatius", lat: 14.6190, lng: 121.0560 }, // approximate  
+{ name: "Open Space, Barangay Tagumpay", lat: 14.6115, lng: 121.0435 }, // approximate  
+{ name: "Barangay Hall, Ugong Norte", lat: 14.6320, lng: 121.0520 }, // approximate  
+{ name: "Corinthian Garden Clubhouse, Ugong Norte", lat: 14.6315, lng: 121.0530 }, // approximate  
+{ name: "Corinthian Football Field, Ugong Norte", lat: 14.6310, lng: 121.0535 }, // approximate  
+{ name: "Arcadia Clubhouse, Ugong Norte", lat: 14.6305, lng: 121.0540 }, // approximate  
+{ name: "Open Space, Ugong Norte", lat: 14.6325, lng: 121.0545 }, // approximate  
+{ name: "Open Space, Ugong Norte", lat: 14.6330, lng: 121.0550 }, // approximate  
+{ name: "Open Space, Ugong Norte", lat: 14.6335, lng: 121.0555 }, // approximate  
+{ name: "Open Space, Ugong Norte", lat: 14.6340, lng: 121.0560 }, // approximate  
+{ name: "Open Space, Villa Maria Clara", lat: 14.6200, lng: 121.0610 }, // approximate  
+{ name: "Pelaez Park, Villa Maria Clara", lat: 14.6195, lng: 121.0615 }, // approximate  
+{ name: "Multipurpose Hall, West Kamias", lat: 14.6395, lng: 121.0430 }, // approximate  
+{ name: "Tennis Court, White Plains", lat: 14.6490, lng: 121.0350 }, // approximate  
+{ name: "Basketball Court, White Plains", lat: 14.6495, lng: 121.0355 }, // approximate  
+                   // approximate (High school near the above) :contentReference[oaicite:3]{index=3}  
+
+
+
+          // converted from 14°42′20″ N 120°57′15″ E = ~14.7056,120.9542. :contentReference[oaicite:4]{index=4}  
+
+];
+
+// Add Manila centers as markers
+function addManilaCenters() {
+  manilaCenters.forEach(c => {
+    L.marker([c.lat, c.lng]).addTo(map)
+     .bindPopup(`<h4>${c.name}</h4>`);
+    evacCenters.push({ name: c.name, lat: c.lat, lng: c.lng });
+  });
+}
+
 // Initialize evacuation centers
 async function initEvacCenters() {
- const url = 'https://raw.githubusercontent.com/ddgpmc/tinoph/refs/heads/main/ph_evacs_cleaned.geojson';
- const centers = await loadGeoJSON(url);
- console.log("Centers loaded:", centers.length);
- window.resolveCenters(centers);
+  const url = 'https://raw.githubusercontent.com/ddgpmc/tinoph/refs/heads/main/ph_evacs_cleaned.geojson';
+  const centers = await loadGeoJSON(url);
+  evacCenters = centers;
+  addManilaCenters();
+  console.log("Total centers loaded:", evacCenters.length);
+  window.resolveCenters(evacCenters);
 }
 
 // Detect user location
 function detectLocation() {
  map.locate({ setView:true, maxZoom:16, enableHighAccuracy:true });
-
  map.on('locationfound', e => {
-  // Store the marker instance
   userMarker = L.marker(e.latlng).addTo(map).bindPopup("You are here").openPopup();
   window.resolveLocation(e.latlng);
  });
-
  map.on('locationerror', e => {
   console.error("Location error:", e.message);
   alert("Location not found. Navigation disabled.");
@@ -177,7 +388,7 @@ function detectLocation() {
  });
 }
 
-// Find nearest evacuation center and draw route
+// Find nearest evacuation center
 function findNearestCenter() {
  if(!userLatLng) return alert("Allow location access first.");
  if(evacCenters.length===0) return alert("No center data.");
@@ -186,32 +397,22 @@ function findNearestCenter() {
  let minDist = userLatLng.distanceTo(L.latLng(nearest.lat, nearest.lng));
 
  evacCenters.forEach(c => {
-  let dist = userLatLng.distanceTo(L.latLng(c.lat, c.lng));
+  const dist = userLatLng.distanceTo(L.latLng(c.lat, c.lng));
   if(dist < minDist) { minDist = dist; nearest = c; }
  });
- 
- // 1. Remove the initial 'You are here' marker so the L.Routing marker (A) is visible
- if (userMarker) {
-  map.removeLayer(userMarker);
-  userMarker = null; 
- }
 
- // 2. 🌟 CORRECTED Google Maps URL Construction 
-    // Uses the base URL for directions and correctly interpolates variables.
+ if(userMarker) { map.removeLayer(userMarker); userMarker = null; }
+
  const mapsUrl = `https://www.google.com/maps/dir/${userLatLng.lat},${userLatLng.lng}/${nearest.lat},${nearest.lng}`;
 
- // 3. Draw Route from User (A) to Nearest Center (B)
  if(routeControl) map.removeControl(routeControl);
  routeControl = L.Routing.control({
-  waypoints: [ 
-            L.latLng(userLatLng.lat, userLatLng.lng), // Start point (A)
-            L.latLng(nearest.lat, nearest.lng)       // End point (B/Arrow)
-        ],
+  waypoints: [ L.latLng(userLatLng.lat, userLatLng.lng), L.latLng(nearest.lat, nearest.lng) ],
   routeWhileDragging: false,
   draggableWaypoints: false,
   addWaypoints: false,
   show: false,
-        fitSelectedRoutes: true 
+  fitSelectedRoutes: true
  }).addTo(map);
 
  const popupHtml = `
@@ -220,19 +421,17 @@ function findNearestCenter() {
   <a href="${mapsUrl}" target="_blank" class="nav-link">Start GPS Navigation 🚗</a>
  `;
 
- // 4. Open Popup at the Nearest Center's location
  L.popup({ maxWidth: 250 })
-  .setLatLng(L.latLng(nearest.lat, nearest.lng)) 
+  .setLatLng(L.latLng(nearest.lat, nearest.lng))
   .setContent(popupHtml)
   .openOn(map);
 }
 
-
+// Initialize everything
 document.addEventListener('DOMContentLoaded', async () => {
  initMap();
  initEvacCenters();
  detectLocation();
-
  await Promise.all([locationFoundPromise, centersLoadedPromise]);
 
  if(userLatLng && evacCenters.length>0){
