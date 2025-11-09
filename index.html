@@ -9,50 +9,75 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
 
 <style>
-    /* Reset and Map Styling */
-    html, body { 
-        margin:0; 
-        padding:0; 
-        height:100%; 
-        font-family: Arial, sans-serif;
-    }
-    #map { 
-        height:100%; 
-        width:100%; 
-        position: relative; 
-        z-index: 1; 
-    }
-    
-    /* Control Box Styling */
-    #controls {
-        position: absolute;
-        top: 15px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 10000;
-        background: white;
-        padding: 12px;
-        border-radius: 10px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    }
-    #controls button {
-        padding: 12px 20px;
-        font-size: 16px;
-        font-weight: bold;
-        border: none;
-        border-radius: 8px;
-        background-color: #EC1B34; 
-        color: white;
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }
-    #controls button:hover:not(:disabled) {
-        background-color: #d1172e;
-    }
-    #controls button:disabled {
-        background-color: #ccc;
-        cursor: not-allowed;
-    }
+/* --- Base Styling --- */
+html, body { 
+ margin:0; padding:0; height:100%; font-family: Arial, sans-serif;
+}
+#map { 
+ height:100%; width:100%; z-index: 1; 
+}
+
+/* --- Control Button Styling --- */
+#controls {
+ position: absolute;
+ top: 15px;
+ left: 50%;
+ transform: translateX(-50%);
+ z-index: 10000;
+ background: #fff;
+ padding: 12px 18px;
+ border-radius: 10px;
+ box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+#controls button {
+ padding: 12px 20px;
+ font-size: 16px;
+ font-weight: bold;
+ border: none;
+ border-radius: 8px;
+ background-color: #EC1B34;
+ color: white;
+ cursor: pointer;
+ transition: background-color 0.2s;
+}
+#controls button:hover:not(:disabled) {
+ background-color: #d1172e;
+}
+#controls button:disabled {
+ background-color: #ccc;
+ cursor: not-allowed;
+}
+
+/* --- Leaflet Popup Custom Style --- */
+.leaflet-popup-content-wrapper {
+ border-radius: 12px;
+ padding: 12px;
+ background: #fff;
+ box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.leaflet-popup-content h4 {
+ margin: 0 0 6px 0;
+ font-size: 16px;
+ font-weight: bold;
+ color: #EC1B34;
+}
+.leaflet-popup-content p {
+ margin: 4px 0;
+ font-size: 14px;
+}
+.nav-link {
+ display: inline-block;
+ margin-top: 8px;
+ padding: 8px 12px;
+ background-color: #4285F4;
+ color: #fff;
+ font-weight: bold;
+ text-decoration: none;
+ border-radius: 6px;
+}
+.nav-link:hover {
+background-color: #3367d6;
+}
 </style>
 </head>
 <body>
@@ -60,182 +85,167 @@
 <div id="map"></div>
 
 <div id="controls">
-    <button id="findNearestBtn" disabled>Loading Map Data & Location...</button>
+ <button id="findNearestBtn" disabled>Loading Map & Location...</button>
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 
 <script>
-    // Global variables
-    let map;
-    let userLatLng = null;
-    let evacCenters = [];
-    let routeControl = null;
-    const button = document.getElementById('findNearestBtn');
+// Global variables
+let map, userLatLng = null, evacCenters = [], routeControl = null;
+let userMarker = null; 
+const button = document.getElementById('findNearestBtn');
 
-    // Promises to track readiness
-    let locationFoundPromise = new Promise(resolve => {
-        // Resolve function passed to location listener
-        window.resolveLocation = (latlng) => {
-            userLatLng = latlng;
-            resolve();
-        };
-    });
-    let centersLoadedPromise = new Promise(resolve => {
-        // Resolve function passed to async data loader
-        window.resolveCenters = (centers) => {
-            evacCenters = centers;
-            resolve();
-        };
-    });
+// Promises to track readiness
+let locationFoundPromise = new Promise(resolve => { window.resolveLocation = (latlng) => { userLatLng = latlng; resolve(); }; });
+let centersLoadedPromise = new Promise(resolve => { window.resolveCenters = (centers) => { evacCenters = centers; resolve(); }; });
 
-    /**
-     * Initializes the Leaflet map and loads tile layer.
-     */
-    function initMap() {
-        map = L.map('map').setView([12.8797, 121.7740], 6); // Default view over Philippines
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
-            maxZoom: 19,
-            attribution: '© OpenStreetMap contributors' 
-        }).addTo(map);
-    }
+// Initialize map
+function initMap() {
+ map = L.map('map').setView([12.8797, 121.7740], 6);
+ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+}
 
-    /**
-     * Fetches GeoJSON, filters for Point geometries, and populates markers.
-     */
-    async function loadGeoJSON(url) {
-        try {
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`Network response was not ok: ${res.statusText}`);
-            const geojson = await res.json();
+// Helper to get a LatLng from a GeoJSON feature (supports Points and Polygons)
+function getFeatureLatLng(feature) {
+ if (!feature.geometry) return null;
+ const coords = feature.geometry.coordinates;
 
-            // 🌟 FIX: Filter data to only include valid POINT geometries for distance calculation
-            const centers = geojson.features
-                .filter(f => f.geometry && f.geometry.type === 'Point') 
-                .map(f => ({
-                    name: f.properties.name || "Evacuation Center",
-                    // For Point, coordinates is [lng, lat]
-                    lat: f.geometry.coordinates[1], 
-                    lng: f.geometry.coordinates[0]  
-                }));
+ if (feature.geometry.type === "Point") return L.latLng(coords[1], coords[0]);
+ 
+    // Simplified logic for Polygon/MultiPolygon centroid calculation
+ if (feature.geometry.type === "Polygon" || feature.geometry.type === "MultiPolygon") {
+  let latSum = 0, lngSum = 0, count = 0;
+        // Use the first ring of the first part (coords[0] for Polygon, coords[0][0] for MultiPolygon)
+        const ring = feature.geometry.type === "Polygon" ? coords[0] : coords[0][0]; 
+  ring.forEach(c => { lngSum += c[0]; latSum += c[1]; count++; });
+  return L.latLng(latSum / count, lngSum / count);
+ }
+ return null;
+}
 
-            // Add ALL features (Points, Polygons, etc.) to map for visualization
-            L.geoJSON(geojson, {
-                onEachFeature: function(feature, layer) {
-                    layer.bindPopup(feature.properties.name || "Evacuation Center");
-                }
-            }).addTo(map);
+// Load GeoJSON and populate map markers
+async function loadGeoJSON(url) {
+ try {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(res.statusText);
+  const geojson = await res.json();
 
-            return centers;
+  const centers = geojson.features.map(f => {
+   const latlng = getFeatureLatLng(f);
+   if (!latlng) return null;
+   return { name: f.properties.name || "Evacuation Center", lat: latlng.lat, lng: latlng.lng };
+  }).filter(c => c !== null);
 
-        } catch(err) {
-            console.error("Failed to load GeoJSON:", err);
-            alert("⚠️ Failed to load evacuation centers data.");
-            return [];
-        }
-    }
+  L.geoJSON(geojson, {
+   onEachFeature: (feature, layer) => {
+    layer.bindPopup(feature.properties.name || "Evacuation Center");
+   }
+  }).addTo(map);
 
-    /**
-     * Initializes the data and resolves the promise.
-     */
-    async function initEvacCenters() {
-        const url = 'https://raw.githubusercontent.com/ddgpmc/tinoph/refs/heads/main/ph_evacs_cleaned.geojson';
-        const centers = await loadGeoJSON(url);
-        console.log("Evacuation centers loaded:", centers.length);
-        window.resolveCenters(centers);
-    }
+  return centers;
+ } catch(err) {
+  console.error("Failed to load GeoJSON:", err);
+  alert("Failed to load evacuation data.");
+  return [];
+ }
+}
 
-    /**
-     * Detects user location and handles success/error.
-     */
-    function detectLocation() {
-        // SetView: true is only used if location is found, otherwise map stays at default view
-        map.locate({ setView: true, maxZoom: 16, watch: false, enableHighAccuracy: true });
+// Initialize evacuation centers
+async function initEvacCenters() {
+ const url = 'https://raw.githubusercontent.com/ddgpmc/tinoph/refs/heads/main/ph_evacs_cleaned.geojson';
+ const centers = await loadGeoJSON(url);
+ console.log("Centers loaded:", centers.length);
+ window.resolveCenters(centers);
+}
 
-        map.on('locationfound', function(e) {
-            L.marker(e.latlng).addTo(map).bindPopup("You are here").openPopup();
-            window.resolveLocation(e.latlng); // Resolve the location promise
-        });
+// Detect user location
+function detectLocation() {
+ map.locate({ setView:true, maxZoom:16, enableHighAccuracy:true });
 
-        map.on('locationerror', function(e) {
-            console.error("Location error:", e.message);
-            alert("❌ Could not get your location. Displaying map only.");
-            window.resolveLocation(null); // Resolve the promise as 'null' on error
-        });
-    }
+ map.on('locationfound', e => {
+  // Store the marker instance
+  userMarker = L.marker(e.latlng).addTo(map).bindPopup("You are here").openPopup();
+  window.resolveLocation(e.latlng);
+ });
 
-    /**
-     * Finds the nearest center and initiates the route.
-     */
-    function findNearestCenter() {
-        if (!userLatLng) return alert("Location not found. Please refresh and allow location access.");
-        if (evacCenters.length === 0) return alert("Evacuation centers data is unavailable.");
+ map.on('locationerror', e => {
+  console.error("Location error:", e.message);
+  alert("Location not found. Navigation disabled.");
+  window.resolveLocation(null);
+ });
+}
 
-        // Safe to access evacCenters[0] because the button is only enabled when length > 0
-        let nearest = evacCenters[0];
-        let minDist = userLatLng.distanceTo(L.latLng(nearest.lat, nearest.lng)); 
+// Find nearest evacuation center and draw route
+function findNearestCenter() {
+ if(!userLatLng) return alert("Allow location access first.");
+ if(evacCenters.length===0) return alert("No center data.");
 
-        evacCenters.forEach(center => {
-            let dist = userLatLng.distanceTo(L.latLng(center.lat, center.lng));
-            if (dist < minDist) {
-                minDist = dist;
-                nearest = center;
-            }
-        });
+ let nearest = evacCenters[0];
+ let minDist = userLatLng.distanceTo(L.latLng(nearest.lat, nearest.lng));
 
-        // Show result popup
-        L.popup()
-          .setLatLng(userLatLng)
-          .setContent(`Nearest center: <b>${nearest.name}</b><br>Distance: ${(minDist / 1000).toFixed(2)} km`)
-          .openOn(map);
+ evacCenters.forEach(c => {
+  let dist = userLatLng.distanceTo(L.latLng(c.lat, c.lng));
+  if(dist < minDist) { minDist = dist; nearest = c; }
+ });
+ 
+ // 1. Remove the initial 'You are here' marker so the L.Routing marker (A) is visible
+ if (userMarker) {
+  map.removeLayer(userMarker);
+  userMarker = null; 
+ }
 
-        // Draw route
-        try {
-            if (routeControl) map.removeControl(routeControl);
-            routeControl = L.Routing.control({
-                waypoints: [
-                    L.latLng(userLatLng.lat, userLatLng.lng),
-                    L.latLng(nearest.lat, nearest.lng)
-                ],
-                routeWhileDragging: false,
-                draggableWaypoints: false,
-                addWaypoints: false,
-                // Optional: Hide default routing instructions for cleaner UI
-                show: false 
-            }).addTo(map);
-        } catch(err) {
-            console.error("Routing error:", err);
-            alert("⚠️ Cannot draw route. The routing service may be temporarily unavailable.");
-        }
-    }
-    
-    // --- Application Entry Point ---
+ // 2. ⭐️ CORRECTED Google Maps URL for Directions 
+    // Format: https://www.google.com/maps/dir/Origin_Lat,Origin_Lng/Dest_Lat,Dest_Lng
+ const mapsUrl = `https://www.google.com/maps/dir/${userLatLng.lat},${userLatLng.lng}/${nearest.lat},${nearest.lng}`;
 
-    document.addEventListener('DOMContentLoaded', async () => {
-        initMap();
-        
-        // Start loading data and location detection concurrently
-        initEvacCenters(); 
-        detectLocation();
+ // 3. Draw Route from User (A) to Nearest Center (B)
+ if(routeControl) map.removeControl(routeControl);
+ routeControl = L.Routing.control({
+  waypoints: [ 
+            L.latLng(userLatLng.lat, userLatLng.lng), // Start point (A)
+            L.latLng(nearest.lat, nearest.lng)       // End point (B/Arrow)
+        ],
+  routeWhileDragging: false,
+  draggableWaypoints: false,
+  addWaypoints: false,
+  show: false,
+        fitSelectedRoutes: true 
+ }).addTo(map);
 
-        // Wait for BOTH promises to resolve before determining button state
-        await Promise.all([locationFoundPromise, centersLoadedPromise]);
+ const popupHtml = `
+  <h4>${nearest.name} (Destination)</h4>
+  <p>Distance: ${(minDist/1000).toFixed(2)} km</p>
+  <a href="${mapsUrl}" target="_blank" class="nav-link">Start GPS Navigation 🚗</a>
+ `;
 
-        // Logic to enable/disable button based on results
-        if (userLatLng && evacCenters.length > 0) {
-            button.disabled = false;
-            button.textContent = "Find the Nearest Evacuation Center";
-        } else if (evacCenters.length > 0) {
-            button.textContent = "Allow Location to Find Nearest Center";
-        } else {
-             button.textContent = "Error Loading Centers Data";
-        }
-        
-        // Attach event listener only after initialization is complete
-        button.addEventListener('click', findNearestCenter);
-    });
+ // 4. Open Popup at the Nearest Center's location
+ L.popup({ maxWidth: 250 })
+  .setLatLng(L.latLng(nearest.lat, nearest.lng)) 
+  .setContent(popupHtml)
+  .openOn(map);
+}
 
+
+document.addEventListener('DOMContentLoaded', async () => {
+ initMap();
+ initEvacCenters();
+ detectLocation();
+
+ await Promise.all([locationFoundPromise, centersLoadedPromise]);
+
+ if(userLatLng && evacCenters.length>0){
+  button.disabled=false;
+  button.textContent="Find the Nearest Evacuation Center";
+ } else if(evacCenters.length>0){
+  button.textContent="Allow Location to Find Nearest Center";
+ } else {
+  button.textContent="Error Loading Data";
+ }
+
+ button.addEventListener('click', findNearestCenter);
+});
 </script>
 
 </body>
