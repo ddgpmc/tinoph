@@ -9,107 +9,236 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
 
 <style>
-html, body { margin:0; padding:0; height:100%; font-family: Arial, sans-serif; }
-#map { height:100%; width:100%; z-index: 1; }
+/* --- BASE STYLES (MOBILE-FIRST) --- */
+html, body { 
+    margin: 0; 
+    padding: 0; 
+    height: 100%; 
+    font-family: Arial, sans-serif; 
+    overflow: hidden; /* Prevent body scroll */
+}
 
+/* Map takes up the whole screen height */
+#map { 
+    height: 100%; 
+    width: 100%; 
+    z-index: 1; 
+}
+
+/* Controls Container: Responsive Placement */
 #controls {
- position: absolute;
- top: 15px;
- left: 50%;
- transform: translateX(-50%);
- z-index: 10000;
- background: #fff;
- padding: 12px 18px;
- border-radius: 10px;
- box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    position: absolute;
+    top: 10px; /* Closer to the top on mobile */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
+    background: #fff;
+    padding: 10px 10px; /* Smaller padding on mobile */
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    /* Flex setup for inner buttons */
+    display: flex;
+    flex-wrap: wrap; 
+    justify-content: center;
+    gap: 8px; /* Smaller gap on mobile */
+    width: 95%; /* Take up most of the screen width */
+    box-sizing: border-box;
 }
+
+/* Control Buttons: Mobile-First Stacking */
 #controls button {
- padding: 12px 20px;
- font-size: 16px;
- font-weight: bold;
- border: none;
- border-radius: 8px;
- background-color: #EC1B34;
- color: white;
- cursor: pointer;
- transition: background-color 0.2s;
+    flex: 1 1 100%; /* Force buttons to stack full width on small screens */
+    padding: 12px 15px; 
+    font-size: 15px;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    background-color: #EC1B34;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.2s;
 }
+
 #controls button:hover:not(:disabled) { background-color: #d1172e; }
 #controls button:disabled { background-color: #ccc; cursor: not-allowed; }
 
-.leaflet-popup-content-wrapper {
- border-radius: 12px;
- padding: 12px;
- background: #fff;
- box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+/* Modal Background and Overlay */
+#emergencyModal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 100000;
+    /* Use flex to center the content */
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    overflow-y: auto; /* Essential for mobile content taller than screen */
+    padding: 10px; /* Small padding around the whole modal */
 }
+
+/* Modal Content Box */
+.modal-content {
+    background: #f9f9f9;
+    padding: 15px; /* Mobile padding */
+    border-radius: 12px;
+    max-width: 1000px;
+    width: 100%; /* Use full width inside its flex container */
+    margin: 10px auto; /* Minimal margin on mobile */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.modal-content h2 { 
+    color: #EC1B34; 
+    text-align: center; 
+    font-size: 1.6em; /* Slightly smaller on mobile */
+}
+.modal-content a {
+    color: #EC1B34; 
+    font-weight: bold;
+}
+
+/* Emergency Numbers Grid Container: Mobile-First Stacking */
+.emergency-grid {
+    display: grid;
+    grid-template-columns: 1fr; /* Default: one column stack */
+    gap: 12px; /* Smaller gap on mobile */
+    margin-top: 15px;
+}
+
+/* Emergency Number Card */
+.emergency-card {
+    background: #fff;
+    padding: 16px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.emergency-card h3 { 
+    font-size: 1.1em; 
+    color: #EC1B34;
+    margin-top: 0;
+}
+.emergency-card p {
+    font-size: 14px;
+    margin: 4px 0;
+}
+
+/* Close Button */
+#closeEmergencyModal {
+    padding: 10px 20px; 
+    border: none; 
+    border-radius: 8px; 
+    background: #EC1B34; 
+    color: #fff; 
+    cursor: pointer;
+    margin-top: 15px;
+}
+
+/* Leaflet Popups (Existing styles retained) */
+.leaflet-popup-content-wrapper { border-radius: 12px; padding: 12px; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
 .leaflet-popup-content h4 { margin: 0 0 6px 0; font-size: 16px; font-weight: bold; color: #EC1B34; }
 .leaflet-popup-content p { margin: 4px 0; font-size: 14px; }
-.nav-link {
- display: inline-block;
- margin-top: 8px;
- padding: 8px 12px;
- background-color: #000000;
- color: #fff !important;
- font-weight: bold;
- text-decoration: none;
- border-radius: 6px;
-}
+.nav-link { display: inline-block; margin-top: 8px; padding: 8px 12px; background-color: #000000; color: #fff !important; font-weight: bold; text-decoration: none; border-radius: 6px; }
 .nav-link:hover { background-color: #3367d6; }
+
+
+/* --- MEDIA QUERIES (TABLET/DESKTOP ENHANCEMENTS) --- */
+
+/* Tablet and Larger (600px) */
+@media (min-width: 600px) {
+    #controls {
+        padding: 12px 18px;
+        gap: 10px;
+        width: auto; /* Allow the controls box to shrink-wrap the buttons */
+    }
+
+    /* Allow buttons to flow horizontally */
+    #controls button {
+        flex: 1 1 200px; 
+        max-width: 250px; /* Prevents buttons from getting too wide */
+    }
+
+    .modal-content {
+        padding: 25px; /* Standard padding */
+        margin: 40px auto; /* Standard margin */
+    }
+
+    .emergency-grid {
+        /* Two columns on tablet */
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+    }
+}
+
+/* Desktop and Larger (1024px) */
+@media (min-width: 1024px) {
+    #controls {
+        top: 15px; /* Push controls down slightly */
+    }
+    
+    .emergency-grid {
+        /* Three columns on desktop */
+        grid-template-columns: repeat(3, 1fr); 
+    }
+}
 </style>
 </head>
 <body>
 
 <div id="map"></div>
 <div id="controls">
-  <button id="findNearestBtn" disabled>Loading Map & Location...</button>
-  <button id="showEmergencyBtn" style="margin-left:10px; padding:12px 20px; font-size:16px; font-weight:bold; border:none; border-radius:8px; background-color:#EC1B34; color:white; cursor:pointer;">Emergency Numbers</button>
+    <button id="findNearestBtn" disabled>
+        Loading Map & Location...
+    </button>
+    <button id="showEmergencyBtn">
+        Emergency Numbers
+    </button>
 </div>
 
-<!-- Emergency Numbers Modal -->
-<div id="emergencyModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; 
-    background: rgba(0,0,0,0.6); z-index:100000; justify-content:center; align-items:center; overflow:auto; padding:20px;">
-  <div style="background:#f9f9f9; padding:20px; border-radius:12px; max-width:900px; width:90%; margin:40px auto; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
+<div id="emergencyModal">
+    <div class="modal-content">
 
-    <p style="font-size:14px; color:#555; margin-bottom:12px; text-align:center;">
-      This is just a reference, some cities dataset are outdated. 
-      <a href="https://e911.gov.ph/emergency-hotline-numbers/" target="_blank" style="color:#EC1B34; font-weight:bold;">Click here for hotlines</a>
-    </p>
+        <p style="font-size:14px; color:#555; margin-bottom:12px; text-align:center;">
+            This is just a reference, some cities dataset are outdated. 
+            <a href="https://example.com/hotlines" target="_blank">Click here for hotlines</a>
+        </p>
 
-    <h2 style="color:#EC1B34; text-align:center;">Emergency Numbers</h2>
+        <h2>Emergency Numbers</h2>
 
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:16px; margin-top:20px;">
-      
-      <div style="background:#fff; padding:16px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
-        <h3>National Emergency Hotline</h3>
-        <p><strong>911</strong> (SMART, TNT, SUN)</p>
-        <p><strong>0932 537 7770</strong></p>
-        <p><strong>0917 839 9896</strong></p>
-      </div>
+        <div class="emergency-grid">
 
-      <div style="background:#fff; padding:16px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
-        <h3>Philippine Coast Guard</h3>
-        <p>Hotline: (02) 8527-8481 to 89 | (02) 8527-3877</p>
-        <p>Facebook: <a href="https://facebook.com/coastguardph" target="_blank" style="color:#EC1B34;">facebook.com/coastguardph</a></p>
-        <p>Twitter: <a href="https://twitter.com/coastguardph" target="_blank" style="color:#EC1B34;">@coastguardph</a></p>
-      </div>
+            <div class="emergency-card">
+                <h3>National Emergency Hotline</h3>
+                <p><strong>911</strong> (SMART, TNT, SUN)</p>
+                <p><strong>0932 537 7770</strong></p>
+                <p><strong>0917 839 9896</strong></p>
+            </div>
 
-      <div style="background:#fff; padding:16px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
-        <h3>PAGASA</h3>
-        <p>Trunk Line Number: (02) 8284-0800</p>
-        <p>Facebook: <a href="https://facebook.com/PAGASA.DOST.GOV.PH" target="_blank" style="color:#EC1B34;">fb.com/PAGASA.DOST.GOV.PH</a></p>
-        <p>Twitter: <a href="https://twitter.com/dost_pagasa" target="_blank" style="color:#EC1B34;">@dost_pagasa</a></p>
-      </div>
+            <div class="emergency-card">
+                <h3>Philippine Coast Guard</h3>
+                <p>Hotline: (02) 8527-8481 to 89 | (02) 8527-3877</p>
+                <p>Facebook: <a href="https://facebook.com/coastguardph" target="_blank">facebook.com/coastguardph</a></p>
+                <p>Twitter: <a href="https://twitter.com/coastguardph" target="_blank">@coastguardph</a></p>
+            </div>
 
-      <!-- Add other organizations in similar divs -->
+            <div class="emergency-card">
+                <h3>PAGASA</h3>
+                <p>Trunk Line Number: (02) 8284-0800</p>
+                <p>Facebook: <a href="https://facebook.com/PAGASA.DOST.GOV.PH" target="_blank">fb.com/PAGASA.DOST.GOV.PH</a></p>
+                <p>Twitter: <a href="https://twitter.com/dost_pagasa" target="_blank">@dost_pagasa</a></p>
+            </div>
+
+            </div>
+
+        <div style="text-align:center;">
+            <button id="closeEmergencyModal">Close</button>
+        </div>
 
     </div>
-
-    <div style="text-align:center; margin-top:20px;">
-      <button id="closeEmergencyModal" style="padding:10px 20px; border:none; border-radius:8px; background:#EC1B34; color:#fff; cursor:pointer;">Close</button>
-    </div>
-
-  </div>
 </div>
 
 
